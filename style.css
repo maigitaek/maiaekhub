@@ -594,3 +594,433 @@ input:focus, textarea:focus, select:focus, .date-picker-trigger:focus-visible, b
 .app-sidebar.is-collapsed .view-tab,
 .app-sidebar.is-collapsed .nav-dropdown-trigger { padding-inline: 9px !important; }
 .app-sidebar.is-collapsed .sidebar-profile-trigger { padding-right: 6px; }
+
+/* =========================================================
+   MOBILE / OVERFLOW REPAIR
+   Keeps all existing JS hooks intact. Visual/layout only.
+   ========================================================= */
+
+html, body {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+img {
+  max-width: 100%;
+}
+
+/* User avatar: the original redesign had no size rule for the real <img>,
+   so an uploaded photo could render at its native dimensions and escape the nav. */
+.sidebar-profile-avatar,
+.sidebar-profile-avatar .profile-avatar-img,
+.sidebar-profile-avatar #profileAvatarImg {
+  width: 30px !important;
+  height: 30px !important;
+  min-width: 30px !important;
+  min-height: 30px !important;
+  max-width: 30px !important;
+  max-height: 30px !important;
+  flex: 0 0 30px !important;
+}
+
+.sidebar-profile-avatar .profile-avatar-img,
+.sidebar-profile-avatar #profileAvatarImg {
+  display: block;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+}
+
+.profile-avatar-edit {
+  display: grid;
+  justify-items: center;
+  gap: 9px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.profile-avatar-preview-wrap {
+  width: 96px;
+  height: 96px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+}
+
+.profile-avatar-preview-wrap .profile-avatar-preview,
+.profile-avatar-preview-wrap img.profile-avatar-preview,
+.profile-avatar-preview-wrap #profileAvatarPreviewImg {
+  width: 96px !important;
+  height: 96px !important;
+  min-width: 96px !important;
+  min-height: 96px !important;
+  max-width: 96px !important;
+  max-height: 96px !important;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 50%;
+}
+
+.app-screen,
+.app-main,
+.app-sidebar,
+.sidebar-nav,
+.toolbar,
+.table-wrap {
+  min-width: 0;
+}
+
+.app-main {
+  width: min(var(--content-max), calc(100% - 48px));
+  max-width: 100%;
+}
+
+.table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+
+.product-table {
+  width: 100%;
+  max-width: none;
+}
+
+.category-filters {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.category-filters::-webkit-scrollbar { display: none; }
+.category-filters button { flex: 0 0 auto; }
+
+/* ---------- Compact tablet ---------- */
+@media (max-width: 1050px) {
+  .app-sidebar {
+    padding-inline: 16px !important;
+  }
+
+  .app-main {
+    width: min(100% - 32px, var(--content-max));
+  }
+
+  .toolbar {
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+  }
+
+  .toolbar .browser-search-wrap {
+    min-width: 0;
+  }
+}
+
+/* ---------- Phone: navigation becomes two clean levels ---------- */
+@media (max-width: 720px) {
+  :root {
+    --nav-h: auto;
+  }
+
+  body {
+    padding-bottom: 74px;
+  }
+
+  .app-sidebar {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    display: grid !important;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "brand . profile"
+      "nav nav nav";
+    align-items: center;
+    gap: 9px 10px;
+    padding: 10px 12px !important;
+    position: sticky !important;
+    top: 0;
+    z-index: 100;
+  }
+
+  .sidebar-top {
+    grid-area: brand;
+    min-width: 0;
+  }
+
+  .sidebar-brand-mark {
+    width: 36px !important;
+    height: 36px !important;
+    flex-basis: 36px !important;
+  }
+
+  .sidebar-collapse-btn {
+    display: none;
+  }
+
+  .sidebar-nav {
+    grid-area: nav;
+    width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding-bottom: 1px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sidebar-nav::-webkit-scrollbar { display: none; }
+
+  .sidebar-nav-secondary {
+    display: none !important;
+  }
+
+  .sidebar-nav .view-tab,
+  .sidebar-nav .nav-dropdown-trigger {
+    min-height: 38px !important;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 7px 11px !important;
+  }
+
+  .sidebar-profile {
+    grid-area: profile;
+    margin: 0 !important;
+    justify-self: end;
+  }
+
+  .sidebar-profile-trigger {
+    min-height: 38px;
+    width: auto;
+    max-width: 150px;
+  }
+
+  .sidebar-user-badge {
+    max-width: 76px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .sidebar-profile-menu {
+    right: 0;
+    left: auto;
+    min-width: 220px;
+    max-width: calc(100vw - 24px);
+  }
+
+  .app-main {
+    width: calc(100% - 24px);
+    max-width: calc(100% - 24px);
+    padding: 22px 0 34px;
+    margin-inline: auto;
+  }
+
+  .app-main::before {
+    font-size: 9px;
+    letter-spacing: .12em;
+  }
+
+  .app-main#productsView::after {
+    top: 14px;
+    right: 0;
+    font-size: 72px;
+  }
+
+  .toolbar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    align-items: stretch;
+  }
+
+  .toolbar .browser-search-wrap {
+    grid-column: 1 / -1;
+  }
+
+  .toolbar .btn {
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding-inline: 9px;
+  }
+
+  .toolbar .btn span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #addProductBtn {
+    grid-column: 1 / -1;
+  }
+
+  .browser-search-field,
+  .search-wrap {
+    min-height: 42px;
+  }
+
+  .bulk-action-bar {
+    align-items: center;
+  }
+
+  .bulk-action-buttons {
+    width: 100%;
+  }
+
+  .bulk-action-buttons .btn {
+    flex: 1 1 auto;
+  }
+
+  .table-wrap {
+    border-radius: 14px;
+    box-shadow: none;
+  }
+
+  .product-table {
+    min-width: 820px;
+  }
+
+  .product-table th {
+    padding: 10px 10px;
+    font-size: 9px;
+  }
+
+  .product-table td {
+    padding: 11px 10px;
+    font-size: 11px;
+  }
+
+  .pagination-bar {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .pr-dashboard,
+  .insights-summary,
+  .checkcost-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* The existing JS already wires this navigation; give it a real mobile surface. */
+  .mobile-bottom-nav {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    z-index: 120;
+    display: flex;
+    align-items: stretch;
+    gap: 5px;
+    padding: 6px;
+    border: 1px solid var(--line);
+    border-radius: 17px;
+    background: color-mix(in srgb, var(--surface) 94%, transparent);
+    box-shadow: 0 16px 40px rgba(0,0,0,.18);
+    backdrop-filter: blur(18px);
+  }
+
+  .mobile-nav-item {
+    position: relative;
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 48px;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    background: transparent;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 3px;
+    font-size: 9px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+
+  .mobile-nav-item.is-active {
+    color: var(--ink);
+    background: var(--surface-2);
+    border-color: var(--line);
+  }
+
+  .mobile-nav-badge {
+    position: absolute;
+    top: 3px;
+    right: calc(50% - 20px);
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 8px;
+    line-height: 15px;
+    text-align: center;
+  }
+}
+
+@media (min-width: 721px) {
+  .mobile-bottom-nav { display: none !important; }
+}
+
+@media (max-width: 460px) {
+  .app-sidebar {
+    grid-template-columns: 36px 1fr auto;
+  }
+
+  .sidebar-profile-trigger {
+    padding: 4px 7px 4px 5px;
+  }
+
+  .sidebar-profile-caret {
+    display: none;
+  }
+
+  .sidebar-user-badge {
+    display: none;
+  }
+
+  .app-main {
+    width: calc(100% - 20px);
+    max-width: calc(100% - 20px);
+  }
+
+  .pr-dashboard,
+  .insights-summary,
+  .checkcost-summary {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .tool-section {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 360px) {
+  .sidebar-nav .view-tab,
+  .sidebar-nav .nav-dropdown-trigger {
+    padding-inline: 9px !important;
+  }
+
+  .sidebar-nav .view-tab svg,
+  .sidebar-nav .nav-dropdown-trigger svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .pr-dashboard,
+  .insights-summary,
+  .checkcost-summary {
+    grid-template-columns: 1fr;
+  }
+}
