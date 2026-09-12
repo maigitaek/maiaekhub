@@ -18,69 +18,60 @@
   const client = () =>
     typeof sb !== 'undefined' ? sb : null;
 
-  const esc = value =>
-    String(value ?? '').replace(/[&<>'"]/g, char => ({
+  const esc = v =>
+    String(v ?? '').replace(/[&<>'"]/g, c => ({
       '&': '&amp;',
       '<': '&lt;',
       '>': '&gt;',
       "'": '&#39;',
       '"': '&quot;'
-    }[char]));
+    }[c]));
 
-  const localRead = key => {
+  const localRead = k => {
     try {
-      return JSON.parse(localStorage.getItem(key) || '[]');
+      return JSON.parse(localStorage.getItem(k) || '[]');
     } catch {
       return [];
     }
   };
 
-  const localWrite = (key, value) => {
+  const localWrite = (k, v) => {
     try {
-      localStorage.setItem(
-        key,
-        JSON.stringify(value.slice(-50))
-      );
+      localStorage.setItem(k, JSON.stringify(v.slice(-50)));
     } catch {}
   };
 
   function addEvent(type, label, meta = {}) {
-    const user = current();
+    const u = current();
 
-    if (!user?.id) return;
+    if (!u?.id) return;
 
     const row = {
       id: crypto.randomUUID(),
-      user_id: user.id,
+      user_id: u.id,
       type,
       label,
       meta,
       created_at: new Date().toISOString()
     };
 
-    const events = localRead(KEY)
-      .filter(item => item.user_id === user.id);
+    const a = localRead(KEY).filter(x => x.user_id === u.id);
+    a.push(row);
+    localWrite(KEY, a);
 
-    events.push(row);
-    localWrite(KEY, events);
-
-    const notifications = localRead(NOTIF_KEY)
-      .filter(item => item.user_id === user.id);
-
-    notifications.push({
+    const n = localRead(NOTIF_KEY).filter(x => x.user_id === u.id);
+    n.push({
       ...row,
       read: false
     });
+    localWrite(NOTIF_KEY, n);
 
-    localWrite(NOTIF_KEY, notifications);
+    const s = client();
 
-    const supabase = client();
-
-    if (supabase) {
-      supabase
-        .from('security_events')
+    if (s) {
+      s.from('security_events')
         .insert({
-          user_id: user.id,
+          user_id: u.id,
           event_type: type,
           event_label: label,
           metadata: meta
@@ -91,121 +82,87 @@
   }
 
   function openModal(id) {
-    const element = $p(id);
+    const e = $p(id);
 
-    if (element) {
-      element.hidden = false;
-      element.classList.add('is-visible');
+    if (e) {
+      e.hidden = false;
+      e.classList.add('is-visible');
     }
   }
 
   function closeModal(id) {
-    const element = $p(id);
+    const e = $p(id);
 
-    if (element) {
-      element.classList.remove('is-visible');
-      element.hidden = true;
+    if (e) {
+      e.classList.remove('is-visible');
+      e.hidden = true;
     }
   }
 
   function openProfileExtras() {
-    const user = current();
-    const userProfile = profile();
+    const u = current();
+    const p = profile();
 
-    if (!user) return;
+    if (!u) return;
 
     if ($p('fEmail')) {
-      $p('fEmail').value =
-        user.email || userProfile?.email || '';
+      $p('fEmail').value = u.email || p?.email || '';
     }
 
     if ($p('fPhone')) {
-      $p('fPhone').value =
-        user.user_metadata?.phone || '';
+      $p('fPhone').value = u.user_metadata?.phone || '';
     }
   }
 
-  async function savePersonalInfo(event) {
-    event.preventDefault();
-    event.stopImmediatePropagation();
+  async function savePersonalInfo(e) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
 
-    const supabase = client();
-    const user = current();
-    const userProfile = profile();
-    const errorElement = $p('profileFormError');
-    const saveButton = $p('saveProfileBtn');
+    const s = client();
+    const u = current();
+    const p = profile();
+    const err = $p('profileFormError');
+    const btn = $p('saveProfileBtn');
 
-    if (!supabase || !user) return;
+    if (!s || !u) return;
 
-    const email =
-      $p('fEmail')?.value.trim() || '';
-
-    const phone =
-      $p('fPhone')?.value.trim() || '';
-
-    const displayName =
-      $p('fDisplayName')?.value.trim() || '';
+    const email = $p('fEmail')?.value.trim() || '';
+    const phone = $p('fPhone')?.value.trim() || '';
+    const display = $p('fDisplayName')?.value.trim() || '';
 
     if (!email) {
-      if (errorElement) {
-        errorElement.textContent =
-          'กรุณาระบุอีเมล';
-      }
-
+      if (err) err.textContent = 'กรุณาระบุอีเมล';
       return;
     }
 
-    if (saveButton) {
-      saveButton.disabled = true;
-      saveButton.classList.add('is-loading');
+    if (btn) {
+      btn.disabled = true;
+      btn.classList.add('is-loading');
     }
 
     try {
-      let avatarUrl =
-        userProfile?.avatar_url || null;
-
-      const file =
-        $p('profileAvatarInput')?.files?.[0];
+      let avatarUrl = p?.avatar_url || null;
+      const file = $p('profileAvatarInput')?.files?.[0];
 
       if (file) {
         if (file.size > 8 * 1024 * 1024) {
-          throw new Error(
-            'ไฟล์ใหญ่เกินไป (สูงสุด 8MB)'
-          );
+          throw new Error('ไฟล์ใหญ่เกินไป (สูงสุด 8MB)');
         }
 
-        const extension =
-          file.name
-            .split('.')
-            .pop()
-            .toLowerCase();
+        const ext = file.name.split('.').pop().toLowerCase();
+        const path = `${u.id}/avatar.${ext}`;
 
-        const path =
-          `${user.id}/avatar.${extension}`;
+        const up = await s.storage
+          .from('avatars')
+          .upload(path, file, {
+            upsert: true,
+            cacheControl: '3600'
+          });
 
-        const upload =
-          await supabase.storage
-            .from('avatars')
-            .upload(
-              path,
-              file,
-              {
-                upsert: true,
-                cacheControl: '3600'
-              }
-            );
-
-        if (upload.error) {
-          throw upload.error;
-        }
+        if (up.error) throw up.error;
 
         avatarUrl =
-          `${
-            supabase.storage
-              .from('avatars')
-              .getPublicUrl(path)
-              .data.publicUrl
-          }?v=${Date.now()}`;
+          `${s.storage.from('avatars').getPublicUrl(path).data.publicUrl}?v=${Date.now()}`;
       }
 
       const authUpdate = {
@@ -214,55 +171,41 @@
         }
       };
 
-      if (email !== user.email) {
+      if (email !== u.email) {
         authUpdate.email = email;
       }
 
       const {
         data: userData,
-        error: authError
-      } = await supabase.auth.updateUser(
-        authUpdate
-      );
+        error: authErr
+      } = await s.auth.updateUser(authUpdate);
 
-      if (authError) {
-        throw authError;
-      }
+      if (authErr) throw authErr;
 
       const {
         data,
-        error: databaseError
-      } = await supabase
+        error: dbErr
+      } = await s
         .from('profiles')
         .update({
-          display_name: displayName || null,
+          display_name: display || null,
           avatar_url: avatarUrl
         })
-        .eq('id', user.id)
-        .select(
-          'id, username, role, email, display_name, avatar_url'
-        )
+        .eq('id', u.id)
+        .select('id, username, role, email, display_name, avatar_url')
         .single();
 
-      if (databaseError) {
-        throw databaseError;
-      }
+      if (dbErr) throw dbErr;
 
       currentProfile = {
-        ...userProfile,
+        ...p,
         ...data,
-        email:
-          userData?.user?.email ||
-          userProfile?.email ||
-          email
+        email: userData?.user?.email || p?.email || email
       };
 
-      currentUser =
-        userData?.user || user;
+      currentUser = userData?.user || u;
 
-      if (
-        typeof applyRolePermissions === 'function'
-      ) {
+      if (typeof applyRolePermissions === 'function') {
         applyRolePermissions();
       }
 
@@ -270,18 +213,14 @@
         'profile_updated',
         'อัปเดตข้อมูลโปรไฟล์',
         {
-          email_changed:
-            email !== user.email,
-
-          phone_changed:
-            phone !==
-            (user.user_metadata?.phone || '')
+          email_changed: email !== u.email,
+          phone_changed: phone !== (u.user_metadata?.phone || '')
         }
       );
 
       if (typeof showToast === 'function') {
         showToast(
-          email !== user.email
+          email !== u.email
             ? 'บันทึกแล้ว — กรุณายืนยันอีเมลใหม่'
             : 'บันทึกโปรไฟล์สำเร็จ',
           'success'
@@ -289,40 +228,35 @@
       }
 
       closeModal('profileModal');
-
-    } catch (error) {
-      if (errorElement) {
-        errorElement.textContent =
-          error.message ||
-          'บันทึกโปรไฟล์ไม่สำเร็จ';
+    } catch (ex) {
+      if (err) {
+        err.textContent = ex.message || 'บันทึกโปรไฟล์ไม่สำเร็จ';
       }
-
     } finally {
-      if (saveButton) {
-        saveButton.disabled = false;
-        saveButton.classList.remove('is-loading');
+      if (btn) {
+        btn.disabled = false;
+        btn.classList.remove('is-loading');
       }
     }
   }
 
-  function meter(value) {
-    const bar = $p('passwordMeterBar');
-    const label = $p('passwordMeterLabel');
+  function meter(v) {
+    const b = $p('passwordMeterBar');
+    const l = $p('passwordMeterLabel');
 
-    if (!bar || !label) return;
+    if (!b || !l) return;
 
     let score = 0;
 
-    if (value.length >= 6) score++;
-    if (value.length >= 8) score++;
-    if (value.length >= 12) score++;
-    if (/[0-9]/.test(value)) score++;
+    if (v.length >= 6) score++;
+    if (v.length >= 8) score++;
+    if (v.length >= 12) score++;
+    if (/[0-9]/.test(v)) score++;
 
-    bar.style.width =
-      ([0, 25, 50, 75, 100][score] || 0) + '%';
+    b.style.width = ([0, 25, 50, 75, 100][score] || 0) + '%';
 
-    label.textContent =
-      !value
+    l.textContent =
+      !v
         ? 'กรอกรหัสผ่าน'
         : score < 2
           ? 'อ่อน'
@@ -339,105 +273,116 @@
 
     clearInterval(countdownTimer);
 
-    [
-      'otpStepVerify',
-      'otpStepPassword'
-    ].forEach(id => {
-      if ($p(id)) {
-        $p(id).hidden = true;
-      }
+    ['otpStepVerify', 'otpStepPassword'].forEach(id => {
+      $p(id).hidden = true;
     });
 
-    if ($p('otpStepSend')) {
-      $p('otpStepSend').hidden = false;
-    }
-
-    if ($p('passwordOtpInput')) {
-      $p('passwordOtpInput').value = '';
-    }
-
-    if ($p('newPasswordInput')) {
-      $p('newPasswordInput').value = '';
-    }
-
-    if ($p('confirmNewPasswordInput')) {
-      $p('confirmNewPasswordInput').value = '';
-    }
-
-    if ($p('passwordChangeError')) {
-      $p('passwordChangeError').textContent = '';
-    }
+    $p('otpStepSend').hidden = false;
+    $p('passwordOtpInput').value = '';
+    $p('newPasswordInput').value = '';
+    $p('confirmNewPasswordInput').value = '';
+    $p('passwordChangeError').textContent = '';
   }
 
   function openPasswordFlow() {
-    const user = current();
-
-    const email =
-      user?.email ||
-      profile()?.email ||
-      '';
+    const u = current();
+    const email = u?.email || profile()?.email || '';
 
     if (!email) {
-      showToast?.(
-        'บัญชีนี้ไม่มีอีเมลสำหรับรับ OTP',
-        'error'
-      );
-
+      showToast?.('บัญชีนี้ไม่มีอีเมลสำหรับรับ OTP', 'error');
       return;
     }
 
     resetFlow();
-
-    if ($p('otpTargetEmail')) {
-      $p('otpTargetEmail').textContent =
-        maskEmail(email);
-    }
-
+    $p('otpTargetEmail').textContent = maskEmail(email);
     openModal('passwordOtpModal');
   }
 
-  function maskEmail(email) {
-    const [name, domain] =
-      String(email).split('@');
+  function maskEmail(e) {
+    const [a, b] = String(e).split('@');
 
-    if (!domain) return email;
+    return b
+      ? `${a.slice(0, 2)}${a.length > 2 ? '•••' : ''}@${b}`
+      : e;
+  }
 
-    return `${name.slice(0, 2)}${
-      name.length > 2 ? '•••' : ''
-    }@${domain}`;
+  async function sendEmailViaResend({ to, subject, html }) {
+    const supabase = client();
+
+    if (!supabase) {
+      throw new Error('ไม่พบการเชื่อมต่อ Supabase');
+    }
+
+    const {
+      data,
+      error
+    } = await supabase.functions.invoke('send-email', {
+      body: {
+        to,
+        subject,
+        html
+      }
+    });
+
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+
+    return data;
+  }
+
+  async function sendSecurityNotification({
+    subject,
+    title,
+    message
+  }) {
+    const user = current();
+    const email = user?.email || profile()?.email || '';
+
+    if (!email) return;
+
+    try {
+      await sendEmailViaResend({
+        to: email,
+        subject,
+        html: `
+          <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:24px;color:#222">
+            <h2>${esc(title)}</h2>
+            <p style="white-space:pre-line;line-height:1.7">
+              ${esc(message)}
+            </p>
+            <hr>
+            <small style="color:#777">MaiaekHub</small>
+          </div>
+        `
+      });
+    } catch (error) {
+      console.error('Resend notification error:', error);
+    }
   }
 
   async function sendOtp() {
-    const supabase = client();
-    const user = current();
+    const s = client();
+    const u = current();
+    const email = u?.email || profile()?.email;
 
-    const email =
-      user?.email ||
-      profile()?.email;
+    if (!s || !email) return;
 
-    if (!supabase || !email) return;
+    const btn = $p('sendPasswordOtpBtn');
 
-    const button =
-      $p('sendPasswordOtpBtn');
-
-    if (button) {
-      button.disabled = true;
-    }
+    if (btn) btn.disabled = true;
 
     try {
-      const { error } =
-        await supabase.auth.signInWithOtp({
-          email,
+      const {
+        error
+      } = await s.auth.signInWithOtp({
+        email,
+        options: {
+          shouldCreateUser: false,
+          emailRedirectTo: location.href
+        }
+      });
 
-          options: {
-            shouldCreateUser: false,
-            emailRedirectTo: location.href
-          }
-        });
-
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       otpSentAt = Date.now();
 
@@ -452,53 +397,30 @@
         'ส่ง OTP สำหรับเปลี่ยนรหัสผ่าน'
       );
 
+      showToast?.('ส่ง OTP ไปยังอีเมลแล้ว', 'success');
+    } catch (ex) {
       showToast?.(
-        'ส่ง OTP ไปยังอีเมลแล้ว',
-        'success'
-      );
-
-    } catch (error) {
-      showToast?.(
-        error.message ||
-        'ส่ง OTP ไม่สำเร็จ',
+        ex.message || 'ส่ง OTP ไม่สำเร็จ',
         'error'
       );
-
     } finally {
-      if (button) {
-        button.disabled = false;
-      }
+      if (btn) btn.disabled = false;
     }
   }
 
   function startCountdown() {
     clearInterval(countdownTimer);
 
-    const element =
-      $p('otpCountdown');
-
-    const end =
-      otpSentAt + 300000;
+    const el = $p('otpCountdown');
+    const end = otpSentAt + 300000;
 
     const tick = () => {
-      const left =
-        Math.max(0, end - Date.now());
+      const left = Math.max(0, end - Date.now());
 
-      if (element) {
-        element.textContent =
-          left
-            ? `OTP หมดอายุใน ${
-                String(
-                  Math.floor(left / 60000)
-                ).padStart(2, '0')
-              }:${
-                String(
-                  Math.floor(
-                    (left % 60000) / 1000
-                  )
-                ).padStart(2, '0')
-              }`
-            : 'OTP หมดอายุแล้ว';
+      if (el) {
+        el.textContent = left
+          ? `OTP หมดอายุใน ${String(Math.floor(left / 60000)).padStart(2, '0')}:${String(Math.floor(left % 60000 / 1000)).padStart(2, '0')}`
+          : 'OTP หมดอายุแล้ว';
       }
 
       if (!left) {
@@ -507,62 +429,42 @@
     };
 
     tick();
-
-    countdownTimer =
-      setInterval(tick, 1000);
+    countdownTimer = setInterval(tick, 1000);
   }
 
   async function verifyOtp() {
-    const supabase = client();
-    const user = current();
-
-    const email =
-      user?.email ||
-      profile()?.email;
-
-    const token =
-      $p('passwordOtpInput')
-        .value
-        .trim();
+    const s = client();
+    const u = current();
+    const email = u?.email || profile()?.email;
+    const token = $p('passwordOtpInput').value.trim();
 
     if (
-      !supabase ||
+      !s ||
       !email ||
       !/^[0-9]{6}$/.test(token)
     ) {
-      showToast?.(
-        'กรุณากรอก OTP 6 หลัก',
-        'error'
-      );
-
+      showToast?.('กรุณากรอก OTP 6 หลัก', 'error');
       return;
     }
 
-    const button =
-      $p('verifyPasswordOtpBtn');
+    const btn = $p('verifyPasswordOtpBtn');
 
-    if (button) {
-      button.disabled = true;
-    }
+    if (btn) btn.disabled = true;
 
     try {
       const {
         data,
         error
-      } = await supabase.auth.verifyOtp({
+      } = await s.auth.verifyOtp({
         email,
         token,
         type: 'email'
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       if (!data?.session) {
-        throw new Error(
-          'ยืนยัน OTP สำเร็จแต่ไม่พบเซสชัน'
-        );
+        throw new Error('ยืนยัน OTP สำเร็จแต่ไม่พบเซสชัน');
       }
 
       otpVerified = true;
@@ -575,75 +477,61 @@
         'password_otp_verified',
         'ยืนยัน OTP สำเร็จ'
       );
-
-    } catch (error) {
+    } catch (ex) {
       showToast?.(
-        error.message ||
-        'OTP ไม่ถูกต้องหรือหมดอายุ',
+        ex.message || 'OTP ไม่ถูกต้องหรือหมดอายุ',
         'error'
       );
-
     } finally {
-      if (button) {
-        button.disabled = false;
-      }
+      if (btn) btn.disabled = false;
     }
   }
 
   async function saveNewPassword() {
-    const supabase = client();
-
-    const password =
-      $p('newPasswordInput').value;
-
-    const confirmPassword =
-      $p('confirmNewPasswordInput').value;
-
-    const errorElement =
-      $p('passwordChangeError');
+    const s = client();
+    const p = $p('newPasswordInput').value;
+    const c = $p('confirmNewPasswordInput').value;
+    const err = $p('passwordChangeError');
 
     if (!otpVerified) {
-      errorElement.textContent =
-        'กรุณายืนยัน OTP ก่อน';
-
+      err.textContent = 'กรุณายืนยัน OTP ก่อน';
       return;
     }
 
-    if (password.length < 6) {
-      errorElement.textContent =
-        'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร';
-
+    if (p.length < 6) {
+      err.textContent = 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร';
       return;
     }
 
-    if (password !== confirmPassword) {
-      errorElement.textContent =
-        'รหัสผ่านทั้งสองช่องไม่ตรงกัน';
-
+    if (p !== c) {
+      err.textContent = 'รหัสผ่านทั้งสองช่องไม่ตรงกัน';
       return;
     }
 
-    const button =
-      $p('saveNewPasswordBtn');
+    const btn = $p('saveNewPasswordBtn');
 
-    if (button) {
-      button.disabled = true;
-    }
+    if (btn) btn.disabled = true;
 
     try {
-      const { error } =
-        await supabase.auth.updateUser({
-          password
-        });
+      const {
+        error
+      } = await s.auth.updateUser({
+        password: p
+      });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       addEvent(
         'password_changed',
         'เปลี่ยนรหัสผ่านสำเร็จ'
       );
+
+      await sendSecurityNotification({
+        subject: 'MaiaekHub: เปลี่ยนรหัสผ่านสำเร็จ',
+        title: 'เปลี่ยนรหัสผ่านสำเร็จ',
+        message:
+          'รหัสผ่านบัญชีของคุณถูกเปลี่ยนเรียบร้อยแล้ว หากไม่ใช่คุณ กรุณาออกจากระบบทุกอุปกรณ์และติดต่อผู้ดูแลระบบ'
+      });
 
       closeModal('passwordOtpModal');
 
@@ -651,215 +539,158 @@
         'เปลี่ยนรหัสผ่านสำเร็จ',
         'success'
       );
-
-    } catch (error) {
-      errorElement.textContent =
-        error.message ||
-        'เปลี่ยนรหัสผ่านไม่สำเร็จ';
-
+    } catch (ex) {
+      err.textContent =
+        ex.message || 'เปลี่ยนรหัสผ่านไม่สำเร็จ';
     } finally {
-      if (button) {
-        button.disabled = false;
-      }
+      if (btn) btn.disabled = false;
     }
   }
 
   async function openSecurity() {
-    const user = current();
-    const userProfile = profile();
+    const u = current();
+    const p = profile();
 
-    if (!user) return;
+    if (!u) return;
 
     openModal('securityModal');
 
-    const email =
-      user.email ||
-      userProfile?.email ||
-      '';
+    const email = u.email || p?.email || '';
+    const phone = u.user_metadata?.phone || '';
 
-    const phone =
-      user.user_metadata?.phone ||
-      '';
-
-    $p('securityEmail').textContent =
-      email || '—';
-
+    $p('securityEmail').textContent = email || '—';
     $p('securityPhone').textContent =
       phone || 'ยังไม่ได้ระบุ';
 
     $p('securityEmailStatus').textContent =
-      user.email_confirmed_at
+      u.email_confirmed_at
         ? 'ยืนยันแล้ว'
         : 'ยังไม่ได้ยืนยัน';
 
     const {
-      data: sessionData
-    } = await client()
-      .auth
-      .getSession();
-
-    const session =
-      sessionData?.session;
+      data: {
+        session
+      }
+    } = await client().auth.getSession();
 
     $p('securityCurrentSession').textContent =
-      session
-        ? 'ใช้งานอยู่'
-        : 'ไม่มีเซสชัน';
+      session ? 'ใช้งานอยู่' : 'ไม่มีเซสชัน';
 
     $p('securityCurrentSessionMeta').textContent =
       session
         ? `${new Date().toLocaleString('th-TH')} · เบราว์เซอร์นี้`
         : '—';
 
-    let list =
-      localRead(KEY)
-        .filter(item => item.user_id === user.id)
-        .slice(-10)
-        .reverse();
+    let list = localRead(KEY)
+      .filter(x => x.user_id === u.id)
+      .slice(-10)
+      .reverse();
 
     try {
-      const result =
-        await client()
-          .from('security_events')
-          .select(
-            'event_type,event_label,metadata,created_at'
-          )
-          .eq('user_id', user.id)
-          .order('created_at', {
-            ascending: false
-          })
-          .limit(20);
+      const r = await client()
+        .from('security_events')
+        .select(
+          'event_type,event_label,metadata,created_at'
+        )
+        .eq('user_id', u.id)
+        .order('created_at', {
+          ascending: false
+        })
+        .limit(20);
 
       if (
-        !result.error &&
-        Array.isArray(result.data) &&
-        result.data.length
+        !r.error &&
+        Array.isArray(r.data) &&
+        r.data.length
       ) {
-        list = result.data.map(item => ({
-          type: item.event_type,
-          label: item.event_label,
-          meta: item.metadata,
-          created_at: item.created_at
+        list = r.data.map(x => ({
+          type: x.event_type,
+          label: x.event_label,
+          meta: x.metadata,
+          created_at: x.created_at
         }));
       }
     } catch {}
 
-    $p('loginActivityList').innerHTML =
-      list.length
-        ? list.map(item => `
+    $p('loginActivityList').innerHTML = list.length
+      ? list.map(x => `
           <div class="security-list-row">
             <div>
-              <strong>
-                ${esc(item.label)}
-              </strong>
-
+              <strong>${esc(x.label)}</strong>
               <small>
-                ${new Date(
-                  item.created_at
-                ).toLocaleString('th-TH')}
+                ${new Date(x.created_at).toLocaleString('th-TH')}
               </small>
             </div>
-
-            <span>
-              ${esc(item.type)}
-            </span>
+            <span>${esc(x.type)}</span>
           </div>
         `).join('')
-        : `
-          <div class="empty-state-inline">
-            ยังไม่มีกิจกรรม
-          </div>
-        `;
+      : '<div class="empty-state-inline">ยังไม่มีกิจกรรม</div>';
 
     $p('sessionList').innerHTML = `
       <div class="security-list-row">
         <div>
-          <strong>
-            อุปกรณ์นี้ · เซสชันปัจจุบัน
-          </strong>
-
+          <strong>อุปกรณ์นี้ · เซสชันปัจจุบัน</strong>
           <small>
-            ${
-              navigator.userAgent.includes('Android')
-                ? 'Android'
-                : 'Browser'
-            } · ${
-              new Date().toLocaleString('th-TH')
-            }
+            ${navigator.userAgent.includes('Android') ? 'Android' : 'Browser'}
+            · ${new Date().toLocaleString('th-TH')}
           </small>
         </div>
-
-        <span class="security-current">
-          กำลังใช้งาน
-        </span>
+        <span class="security-current">กำลังใช้งาน</span>
       </div>
     `;
   }
 
   async function openNotifications() {
-    const user = current();
+    const u = current();
 
-    if (!user) return;
+    if (!u) return;
 
     openModal('notificationsModal');
 
-    let notifications =
-      localRead(NOTIF_KEY)
-        .filter(item => item.user_id === user.id)
-        .slice(-30)
-        .reverse();
+    let n = localRead(NOTIF_KEY)
+      .filter(x => x.user_id === u.id)
+      .slice(-30)
+      .reverse();
 
     try {
-      const result =
-        await client()
-          .from('security_events')
-          .select(
-            'event_type,event_label,created_at'
-          )
-          .eq('user_id', user.id)
-          .order('created_at', {
-            ascending: false
-          })
-          .limit(30);
+      const r = await client()
+        .from('security_events')
+        .select(
+          'event_type,event_label,created_at'
+        )
+        .eq('user_id', u.id)
+        .order('created_at', {
+          ascending: false
+        })
+        .limit(30);
 
       if (
-        !result.error &&
-        Array.isArray(result.data) &&
-        result.data.length
+        !r.error &&
+        Array.isArray(r.data) &&
+        r.data.length
       ) {
-        notifications =
-          result.data.map(item => ({
-            type: item.event_type,
-            label: item.event_label,
-            created_at: item.created_at,
-            read: false
-          }));
+        n = r.data.map(x => ({
+          type: x.event_type,
+          label: x.event_label,
+          created_at: x.created_at,
+          read: false
+        }));
       }
     } catch {}
 
-    $p('notificationsEmpty').hidden =
-      !!notifications.length;
+    $p('notificationsEmpty').hidden = !!n.length;
 
-    $p('notificationsList').innerHTML =
-      notifications.map(item => `
-        <div class="notification-row ${
-          item.read ? 'is-read' : ''
-        }">
-          <span class="notification-dot"></span>
-
-          <div>
-            <strong>
-              ${esc(item.label)}
-            </strong>
-
-            <small>
-              ${new Date(
-                item.created_at
-              ).toLocaleString('th-TH')}
-            </small>
-          </div>
+    $p('notificationsList').innerHTML = n.map(x => `
+      <div class="notification-row ${x.read ? 'is-read' : ''}">
+        <span class="notification-dot"></span>
+        <div>
+          <strong>${esc(x.label)}</strong>
+          <small>
+            ${new Date(x.created_at).toLocaleString('th-TH')}
+          </small>
         </div>
-      `).join('');
+      </div>
+    `).join('');
   }
 
   async function signOutAll() {
@@ -871,7 +702,7 @@
       return;
     }
 
-    const supabase = client();
+    const s = client();
 
     try {
       addEvent(
@@ -879,34 +710,31 @@
         'ออกจากระบบทุกอุปกรณ์'
       );
 
-      await supabase.auth.signOut({
+      await s.auth.signOut({
         scope: 'global'
       });
-
-    } catch (error) {
+    } catch (ex) {
       showToast?.(
-        error.message ||
-        'ไม่สามารถออกจากระบบทุกอุปกรณ์ได้',
+        ex.message || 'ไม่สามารถออกจากระบบทุกอุปกรณ์ได้',
         'error'
       );
     }
   }
 
   function markRead() {
-    const user = current();
+    const u = current();
 
-    if (!user) return;
+    if (!u) return;
 
     localWrite(
       NOTIF_KEY,
-
-      localRead(NOTIF_KEY).map(item =>
-        item.user_id === user.id
+      localRead(NOTIF_KEY).map(x =>
+        x.user_id === u.id
           ? {
-              ...item,
+              ...x,
               read: true
             }
-          : item
+          : x
       )
     );
 
@@ -914,19 +742,14 @@
   }
 
   function bind() {
-    const profileButton =
-      $p('profileAvatarBtn');
+    const profileBtn = $p('profileAvatarBtn');
 
-    profileButton?.addEventListener(
+    profileBtn?.addEventListener(
       'click',
-      () => setTimeout(
-        openProfileExtras,
-        0
-      )
+      () => setTimeout(openProfileExtras, 0)
     );
 
-    const form =
-      $p('profileForm');
+    const form = $p('profileForm');
 
     form?.addEventListener(
       'submit',
@@ -979,10 +802,8 @@
     $p('securityModal')
       ?.addEventListener(
         'click',
-        event => {
-          if (
-            event.target.id === 'securityModal'
-          ) {
+        e => {
+          if (e.target.id === 'securityModal') {
             closeModal('securityModal');
           }
         }
@@ -991,10 +812,8 @@
     $p('notificationsModal')
       ?.addEventListener(
         'click',
-        event => {
-          if (
-            event.target.id === 'notificationsModal'
-          ) {
+        e => {
+          if (e.target.id === 'notificationsModal') {
             closeModal('notificationsModal');
           }
         }
@@ -1003,10 +822,8 @@
     $p('passwordOtpModal')
       ?.addEventListener(
         'click',
-        event => {
-          if (
-            event.target.id === 'passwordOtpModal'
-          ) {
+        e => {
+          if (e.target.id === 'passwordOtpModal') {
             closeModal('passwordOtpModal');
           }
         }
@@ -1039,19 +856,16 @@
     $p('newPasswordInput')
       ?.addEventListener(
         'input',
-        event => meter(
-          event.target.value
-        )
+        e => meter(e.target.value)
       );
 
     $p('passwordOtpInput')
       ?.addEventListener(
         'input',
-        event => {
-          event.target.value =
-            event.target.value
-              .replace(/\D/g, '')
-              .slice(0, 6);
+        e => {
+          e.target.value = e.target.value
+            .replace(/\D/g, '')
+            .slice(0, 6);
         }
       );
 
@@ -1068,9 +882,7 @@
       );
   }
 
-  if (
-    document.readyState === 'loading'
-  ) {
+  if (document.readyState === 'loading') {
     document.addEventListener(
       'DOMContentLoaded',
       bind
