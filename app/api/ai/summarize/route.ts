@@ -1,2 +1,0 @@
-import {NextRequest,NextResponse} from 'next/server';
-export async function POST(req:NextRequest){if(!process.env.GEMINI_API_KEY)return NextResponse.json({error:'GEMINI_API_KEY is not configured'},{status:501});const {text}=await req.json();if(!text)return NextResponse.json({error:'text is required'},{status:400});return NextResponse.json({message:'Gemini integration placeholder. Add server-side Gemini request here.',text});}
